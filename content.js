@@ -1,8 +1,19 @@
 const bookmarkURL = chrome.runtime.getURL("assets/bookmark.png");
+const problemKey = "AZ_PROBLEM_KEY";
 
-window.addEventListener("load", addBookmarkButton);
+const observer = new MutationObserver(addBookmarkButton);
+
+observer.observe(document.body, { childList: true, subtree: true });
+addBookmarkButton();
+
+function onProblemPage() {
+    return window.location.pathname.startsWith("/problems/");
+}
 
 function addBookmarkButton() {
+    console.log("Adding bookmark button");
+    if (!onProblemPage() || document.getElementById("add-bookmark-button")) return;
+
     const bookmarkButton = document.createElement("img");
     bookmarkButton.id = "add-bookmark-button";
     bookmarkButton.src = bookmarkURL;
@@ -13,7 +24,42 @@ function addBookmarkButton() {
 
     buttonPos.insertAdjacentElement("beforebegin", bookmarkButton);
 
-    bookmarkButton.addEventListener('click', () => {
-        alert("Problem Bookmarked!");
+    bookmarkButton.addEventListener('click', addBookmarkHandler)
+}
+
+async function addBookmarkHandler() {
+    const currentBookmark = await getCurrentBookmark();
+
+    const problemURL = window.location.href;
+    const uniqueID = getUniqueID(problemURL);
+    const problemName = document.querySelector(`h4.coding_problem_info_heading__G9ueL.fw-bolder.rubik.text-xl.mb-0`).textContent;
+
+    if(currentBookmark.some((bookmark) => bookmark.id ===uniqueID )) return;
+
+    const bookmarkObj = {
+        id : uniqueID,
+        name : problemName,
+        url : problemURL
+    }
+
+    const updateBookmarks = [...currentBookmark, bookmarkObj];
+
+    chrome.storage.sync.set({[problemKey]: updateBookmarks}, () => {
+        console.log("Updated the bookmark", updateBookmarks);
+    });
+}
+
+function getUniqueID(problemURL) {
+    const start = problemURL.indexOf("/problems/") + "/problems/".length;
+    const end = problemURL.indexOf("?");
+
+    return problemURL.substring(start, end);
+}
+
+function getCurrentBookmark() {
+    return new Promise((resolve, reject) => {
+        chrome.storage.sync.get([problemKey], (result) => {
+            resolve(result[problemKey] || []);
+        });
     });
 }
